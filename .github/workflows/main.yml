@@ -8,4 +8,50 @@ jobs:
       - uses: actions/checkout@v1
       - uses: ./action-a
         with:
-          MY_NAME: "Mona"
+          MY_NAME: "foo"
+    steps:
+      - name: Check version
+        run: |
+          export TAG=$(echo $GITHUB_REF)
+          echo $TAG
+
+
+# name: Update version in elastic-pipeline
+
+# on:
+#   push:
+#     tags:
+#     - '*'
+
+# jobs:
+#   build:
+#     name: Update elastic-system-test version in elastic-pipeline
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Check version
+#         run: |
+#           export TAG=$(echo $GITHUB_REF | sed s/refs\\/tags\\///)
+#           if [[ "${TAG}" =~ ^[0-9]+\.[0-9]+\.[0-9]-[0-9]+$ ]]; then
+#             echo "VERSION_FORMAT=ok" >> $GITHUB_ENV
+#           else
+#             echo "VERSION_FORMAT=nok" >> $GITHUB_ENV
+#           fi
+#           echo "LATEST_VERSION=${TAG}" >> $GITHUB_ENV
+#       - name: Update version in elastic-pipeline
+#         if: env.VERSION_FORMAT == 'ok'
+#         uses: qlik-oss/github_action_run_command_and_create_pr@ea2f1f3e6c2f834eacb5b801449d42f0ef92172b
+#         with:
+#           gh_token: ${{ secrets.SVC_PIPELINE_TOKEN }}
+#           group: qlik-trial
+#           repository: elastic-pipeline
+#           branch: change_system_test_version_to_${{ env.LATEST_VERSION }}
+#           command: "perl -i -0pe 's/(elastic-system-test\\n\\s+tag:\\s*)(\\s\\S+)/\\1 ${{ env.LATEST_VERSION }}/g' ci/templates/qcs.tmpl.yaml"
+#           commit_msg: "Changed system test version to ${{ env.LATEST_VERSION }}"
+#           draft: false
+#           user: svc-pipeline
+#           email: svc_pipeline@qlik.com
+#           label: automerge
+#       - name: Inform about invalid version format
+#         if: env.VERSION_FORMAT == 'nok'
+#         run: |
+#           echo "The version string ${{ env.LATEST_VERSION }} does not match X.X.X-X...X, so elastic pipeline will not be updated."
