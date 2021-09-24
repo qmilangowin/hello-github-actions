@@ -10,7 +10,7 @@ jobs:
     #     with:
     #       MY_NAME: "foo"
     steps:
-      - uses: actions/checkout@vq
+      - uses: actions/checkout@v1
       - uses: ./action-a
       - name: Check version
         run: |
