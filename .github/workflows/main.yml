@@ -36,7 +36,11 @@ jobs:
         shell: bash
         run: |
           export TAG=$(echo $GITHUB_REF | sed s/refs\\/tags\\///)
-          echo "The tag is: $TAG"
+          if [[ $TAG =~ wip_.*$  ]] ; then
+            echo "branch name is: $TAG"
+          else 
+            echo "branch name is main"
+          fi
       - name: Build and tag docker image
         shell: bash
         run: |
