@@ -37,7 +37,7 @@ jobs:
         shell: bash
         run: |
           echo "VERSION=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
-          echo "And the version is: $${{ env.version }}
+          echo "And the version is: ${{ env.VERSION }}"
       # - name: Push image to registry
 
       - name: Run system tests
