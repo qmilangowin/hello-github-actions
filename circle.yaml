@@ -1,0 +1,146 @@
+version: 2
+jobs:
+  build:
+    environment:
+      GOMPLATE_URL: https://github.com/hairyhenderson/gomplate/releases/download/v1.9.1/gomplate_linux-amd64
+      VAULT_ADDR: https://prod.vault.qlikcloud.com:8200
+
+    docker:
+      # specify the version you desire here
+      - image: circleci/node:8.11.1-browsers
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+
+    working_directory: ~/elastic-system-test
+
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+
+      - run:
+          name: Update version
+          command: |
+            mkdir build
+            VER=$(node -e "console.log(require('./package.json').version.replace(/-[0-9]+/, '-$CIRCLE_BUILD_NUM'))")
+            if (echo $VER | egrep -- '-[0-9]+$' 1> /dev/null); then
+              npm version $VER --no-git-tag-version
+            fi
+            if [[ $CIRCLE_BRANCH =~ dev_.*$ ]] ; then
+              echo "$CIRCLE_BRANCH" > ./build/version ;
+            else
+              echo "$VER" > ./build/version ;
+            fi
+
+      - run:
+          name: Install gomplate
+          command: |
+            mkdir -p ~/bin;
+            echo 'export PATH=$HOME/bin:$PATH' >> $BASH_ENV
+            curl -sSLf -z ~/bin/gomplate -o ~/bin/gomplate $GOMPLATE_URL
+            sudo chmod 755 ~/bin/gomplate
+
+      - run:
+          name: Log in to Dockerhub
+          command: |
+            docker login -u $DOCKER_USER -p $DOCKER_PASS
+      - run:
+          name: Log in to Qlik npm and Docker repos
+          command: |
+            echo $QLIK_NPM_DEV_ENCODED | base64 -d > .npmrc
+            docker login -u ${QLIK_DOCKER_DEV_USERNAME} -p ${QLIK_DOCKER_DEV_PASSWORD} $QLIK_DOCKER_DEV_REGISTRY
+
+      - run:
+          name: Download page model
+          command: |
+            sudo chmod 755 gradlew
+            ./gradlew -b build.gradle unpackPageModels -Partifactory_contextUrl=${ARTIFACTORY_URL} -Partifactory_user=${ARTIFACTORY_USERNAME} -Partifactory_password=$ARTIFACTORY_PASSWORD} --no-daemon
+
+      - run:
+          name: Build Docker image
+          command: |
+            version=$(cat build/version)
+            docker build -t ${QLIK_DOCKER_DEV_REGISTRY}/elastic-system-test:$version .
+            if [[ "$CIRCLE_BRANCH" == "master" ]]; then
+              docker tag ${QLIK_DOCKER_DEV_REGISTRY}/elastic-system-test:$version ${QLIK_DOCKER_DEV_REGISTRY}/elastic-system-test:latest
+            fi
+
+      - run:
+          name: Tag and push dev docker image to Docker repo
+          command: |
+            if [[ $CIRCLE_BRANCH =~ dev_.*$ ]] ; then
+              VERSION=$(cat build/version)
+              docker push ${QLIK_DOCKER_DEV_REGISTRY}/elastic-system-test:$VERSION
+            else
+              echo "No dev branch - Don't publish untested image"
+            fi
+
+      - run:
+          name: Running test
+          command: |
+            set -e
+
+            if [[ $CIRCLE_BRANCH =~ dev_.*$ ]] ; then
+              export BASEURL=https://system-test-wario.us.qlik-stage.com/
+              export SUITE=operational
+            else
+              export BASEURL=https://system-test-peach.us.qlik-stage.com/
+            fi
+
+            export VER=$(cat build/version)
+
+            if [[ -v WDURL ]]; then
+              export ZALENIUM_VIDEO=true
+              export PARALLELEXECUTION=18
+            fi
+
+            docker-compose -f docker-compose.test.yml run --name systest sut
+      - run:
+          name: Gather test artifacts
+          command: |
+            docker cp systest:/protractor/reports ./
+          when: always
+
+      - store_artifacts:
+          path: ~/elastic-system-test/reports
+          destination: reports
+
+      - store_test_results:
+          path: ~/elastic-system-test/reports
+
+      - run:
+          name: Tag and push docker image to Docker repo
+          command: |
+            if [[ $CIRCLE_BRANCH =~ dev_.*$ ]] ; then
+              echo "Dev image already pushed - skipping"
+            else
+              VERSION=$(cat build/version)
+              docker push ${QLIK_DOCKER_DEV_REGISTRY}/elastic-system-test:$VERSION
+              if [ "${CIRCLE_BRANCH}" == "master" ]; then
+                docker push ${QLIK_DOCKER_DEV_REGISTRY}/elastic-system-test:latest
+              fi
+            fi
+      - run:
+          name: Create GitHub Release.
+          command: |
+            export VERSION=$(cat build/version)
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              ./scripts/create-github-release.sh
+            fi
+      - deploy:
+          name: Publish pagemodels to maven repo
+          command: |
+            VERSION=$(cat build/version)
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              ./gradlew -b publish.gradle upload -PversionToPublish=$VERSION -PQLIK_MAVEN_DEV_REPOSITORY=${QLIK_MAVEN_DEV_REPOSITORY} -PQLIK_MAVEN_DEV_USERNAME=${QLIK_MAVEN_DEV_USERNAME} -PQLIK_MAVEN_DEV_PASSWORD=${QLIK_MAVEN_DEV_PASSWORD} --no-daemon
+            fi
+      - store_artifacts:
+          path: ./build/version
+          destination: version
+
+workflows:
+  version: 2
+  commit:
+    jobs:
+      - build:
+          context: deploy-secrets

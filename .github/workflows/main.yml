@@ -20,7 +20,11 @@
 #         run: echo "{{ env.abbr }}"
 
 name: elastic
-on: push
+on: 
+  push:
+      branches:
+        - master
+        - wip_*
 jobs:
   branch:
     runs-on: ubuntu-latest
@@ -37,7 +41,7 @@ jobs:
         run: |
           export TAG=$(echo $GITHUB_REF | sed s/refs\\/tags\\///)
           if [[ $TAG =~ wip_.*$  ]] ; then
-            echo "branch name is: $TAG"
+            echo "branch name yoyo ma: $TAG"
           else 
             echo "branch name is main"
           fi
