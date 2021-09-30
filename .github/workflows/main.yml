@@ -24,8 +24,8 @@ on: push
 jobs:
   branch:
     runs-on: ubuntu-latest
-    env:
-      VERSION: ""
+    # env:
+    #   VERSION: ""
     steps:
       - name: Check-out repo
         uses: actions/checkout@v2
@@ -37,6 +37,7 @@ jobs:
         shell: bash
         run: |
           echo "VERSION=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
+          export VERSION=$(git rev-parse --short "$GITHUB_SHA")"
           echo "And the version is: $VERSION"
       # - name: Push image to registry
 
@@ -50,4 +51,3 @@ jobs:
           SUITE: OPERATIONAL
         run: |
           echo "Run tests on: ${{ env.VERSION }}"
-
