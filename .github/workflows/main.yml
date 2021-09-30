@@ -50,4 +50,3 @@ jobs:
           SUITE: OPERATIONAL
         run: |
           echo "Run tests on: ${{ env.VERSION }}"
-        
