@@ -27,10 +27,16 @@ jobs:
     steps:
       - name: Check-out repo
         uses: actions/checkout@v2
-      # - name: Get branch name
-      #   shell: bash
-      #   run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-      #   id: branch_name
+      - name: Get branch name
+        #if: $${{env.foo == "bar"}}
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: branch_name
+      - name: Get branch name 2
+        shell: bash
+        run: |
+          export TAG=$(echo $GITHUB_REF | sed s/refs\\/tags\\///)
+          echo "The tag is: $TAG"
       - name: Build and tag docker image
         shell: bash
         run: |
